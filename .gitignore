@@ -1,3 +1,5 @@
 ebin/
 deps/
 .DS_Store
+.eunit/
+test/*.beam
