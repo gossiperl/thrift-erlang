@@ -96,23 +96,19 @@ read_result(Client = #tclient{protocol = Proto0,
                               seqid    = SeqId},
             Function,
             ReplyType) ->
-    case thrift_protocol:read(Proto0, message_begin) of
-        {_Proto1, {error, Reason}} ->
-            {error, Reason};
-        {Proto1, MessageBegin} ->
-            NewClient = Client#tclient{protocol = Proto1},
-            case MessageBegin of
-                #protocol_message_begin{seqid = RetSeqId} when RetSeqId =/= SeqId ->
-                    {NewClient, {error, {bad_seq_id, SeqId}}};
+    {Proto1, MessageBegin} = thrift_protocol:read(Proto0, message_begin),
+    NewClient = Client#tclient{protocol = Proto1},
+    case MessageBegin of
+        #protocol_message_begin{seqid = RetSeqId} when RetSeqId =/= SeqId ->
+            {NewClient, {error, {bad_seq_id, SeqId}}};
 
-                #protocol_message_begin{type = ?tMessageType_EXCEPTION} ->
-                    handle_application_exception(NewClient);
+        #protocol_message_begin{type = ?tMessageType_EXCEPTION} ->
+            handle_application_exception(NewClient);
 
-                #protocol_message_begin{type = ?tMessageType_REPLY} ->
-                    handle_reply(NewClient, Function, ReplyType)
-            end
-
+        #protocol_message_begin{type = ?tMessageType_REPLY} ->
+            handle_reply(NewClient, Function, ReplyType)
     end.
+
 
 handle_reply(Client = #tclient{protocol = Proto0,
                                service = Service},
@@ -134,7 +130,7 @@ handle_reply(Client = #tclient{protocol = Proto0,
         [] ->
             {NewClient, {ok, hd(ReplyList)}};
         [Exception] ->
-            {NewClient, {exception, Exception}}
+            throw({NewClient, {exception, Exception}})
     end.
 
 handle_application_exception(Client = #tclient{protocol = Proto0}) ->
@@ -146,4 +142,4 @@ handle_application_exception(Client = #tclient{protocol = Proto0}) ->
     error_logger:error_msg("X: ~p~n", [XRecord]),
     true = is_record(XRecord, 'TApplicationException'),
     NewClient = Client#tclient{protocol = Proto2},
-    {NewClient, {exception, XRecord}}.
+    throw({NewClient, {exception, XRecord}}).

@@ -18,7 +18,7 @@
 %%
 
 -module(thrift_framed_transport).
-
+-compile({no_auto_import,[min/2]}).
 -behaviour(thrift_transport).
 
 %% API

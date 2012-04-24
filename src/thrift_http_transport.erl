@@ -18,7 +18,7 @@
 %%
 
 -module(thrift_http_transport).
-
+-compile({no_auto_import,[min/2]}).
 -behaviour(thrift_transport).
 
 %% API
@@ -87,7 +87,7 @@ flush(State = #http_transport{host = Host,
             {State, ok};
         WBinary ->
             {ok, {{_Version, 200, _ReasonPhrase}, _Headers, Body}} =
-              http:request(post,
+              httpc:request(post,
                            {"http://" ++ Host ++ Path,
                             [{"User-Agent", "Erlang/thrift_http_transport"} | ExtraHeaders],
                             "application/x-thrift",
