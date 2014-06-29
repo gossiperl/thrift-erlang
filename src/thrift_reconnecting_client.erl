@@ -26,7 +26,10 @@
           get_stats/1,
           get_and_reset_stats/1 ]).
 
--export([ start_link/6 ]).
+-export([ start_link/6,
+          start_link/7,
+          start_link/8
+        ]).
 
 %% gen_server callbacks
 -export([ init/1,
@@ -57,10 +60,26 @@
 start_link( Host, Port,
             ThriftSvc, ThriftOpts,
             ReconnMin, ReconnMax ) ->
+    start_link( Host, Port,
+                ThriftSvc, ThriftOpts,
+                ReconnMin, ReconnMax, 0 ).
+
+start_link( Host, Port,
+            ThriftSvc, ThriftOpts,
+            ReconnMin, ReconnMax, InitialWait ) ->
   gen_server:start_link( ?MODULE,
                          [ Host, Port,
                            ThriftSvc, ThriftOpts,
-                           ReconnMin, ReconnMax ],
+                           ReconnMin, ReconnMax, InitialWait ],
+                         [] ).
+
+start_link( ServerName, Host, Port,
+            ThriftSvc, ThriftOpts,
+            ReconnMin, ReconnMax, InitialWait ) ->
+  gen_server:start_link( ServerName, ?MODULE,
+                         [ Host, Port,
+                           ThriftSvc, ThriftOpts,
+                           ReconnMin, ReconnMax, InitialWait ],
                          [] ).
 
 call( Pid, Op, Args ) ->
@@ -83,7 +102,7 @@ get_and_reset_stats( Pid ) ->
 %%                         {stop, Reason}
 %% Description: Start the server.
 %%--------------------------------------------------------------------
-init( [ Host, Port, TSvc, TOpts, ReconnMin, ReconnMax ] ) ->
+init( [ Host, Port, TSvc, TOpts, ReconnMin, ReconnMax, InitialWait ] ) ->
   process_flag( trap_exit, true ),
 
   State = #state{ host         = Host,
@@ -95,7 +114,7 @@ init( [ Host, Port, TSvc, TOpts, ReconnMin, ReconnMax ] ) ->
                   op_cnt_dict  = dict:new(),
                   op_time_dict = dict:new() },
 
-  { ok, try_connect( State ) }.
+  { ok, State, InitialWait }.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -156,6 +175,9 @@ handle_cast( _Msg, State ) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
+handle_info( timeout, State ) ->
+  { noreply, try_connect( State ) };
+
 handle_info( _Info, State ) ->
   { noreply, State }.
 
@@ -167,7 +189,10 @@ handle_info( _Info, State ) ->
 %% The return value is ignored.
 %%--------------------------------------------------------------------
 terminate( _Reason, #state{ client = Client } ) ->
-  thrift_client:close( Client ),
+  case Client of
+    nil -> ok;
+    _   -> ( catch thrift_client:close( Client ) )
+  end,
   ok.
 
 %%--------------------------------------------------------------------
